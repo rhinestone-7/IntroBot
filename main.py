@@ -2,15 +2,30 @@ import discord
 import json
 from dotenv import load_dotenv
 import os
+from flask import Flask
+from threading import Thread
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "channels.json")
-
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
+
+# KeepAlive
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "ok", 200
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 def load_data():
     if os.path.exists(DATA_FILE):
@@ -32,10 +47,7 @@ async def on_ready():
 async def on_message(message):
     if message.author.bot:
         return
-
     guild_id = str(message.guild.id)
-
-    # COMMAND: set intro channel
     if message.content.startswith("!setintro"):
         if guild_id not in intro_channels:
             intro_channels[guild_id] = []
@@ -46,8 +58,6 @@ async def on_message(message):
         else:
             await message.channel.send("⚠️ This channel is already in the intro list!")
         return
-
-    # COMMAND: remove intro channel
     if message.content.startswith("!removeintro"):
         if guild_id in intro_channels:
             if message.channel.id in intro_channels[guild_id]:
@@ -57,28 +67,18 @@ async def on_message(message):
             else:
                 await message.channel.send("⚠️ This channel is not in intro list")
         return
-
-    # COMMAND: clear all intro channels
     if message.content.startswith("!clearintro"):
         intro_channels[guild_id] = []
         save_data(intro_channels)
         await message.channel.send("🧹 All intro channels cleared")
         return
-
-    # Get channel list
     channels = intro_channels.get(guild_id, [])
-
-    # Only process if message is in an allowed channel
     if message.channel.id not in channels:
         return
-
-    # Delete the original message first
     try:
         await message.delete()
     except discord.Forbidden:
         print("Missing Manage Messages permission")
-
-    # Get or create webhook
     try:
         webhooks = await message.channel.webhooks()
         webhook = discord.utils.get(webhooks, name="IntroHook")
@@ -87,16 +87,12 @@ async def on_message(message):
     except discord.Forbidden:
         print("Missing Manage Webhooks permission")
         return
-
-    # Build embed
     embed = discord.Embed(
         title="📌 Introduction",
         description=message.content,
         color=discord.Color.brand_red()
     )
     embed.set_thumbnail(url=message.author.display_avatar.url)
-
-    # Send as the member
     await webhook.send(
         content=f"**Hi everyone, I'm {message.author.mention} 👋**",
         embed=embed,
@@ -105,4 +101,5 @@ async def on_message(message):
         allowed_mentions=discord.AllowedMentions(users=False)
     )
 
+keep_alive()
 client.run(TOKEN)
