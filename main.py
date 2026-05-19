@@ -90,7 +90,7 @@ async def on_message(message):
     embed = discord.Embed(
         title="📌 Introduction",
         description=message.content,
-        color=discord.Color.brand_red()
+        color = discord.Color(0x910404)
     )
     embed.set_thumbnail(url=message.author.display_avatar.url)
     await webhook.send(
